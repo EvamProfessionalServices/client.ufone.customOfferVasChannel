@@ -1,0 +1,39 @@
+{
+  "offerType": "CUSTOM_BENEFIT",
+  "name": "cokGuzelOfferBu",
+  "code": "OFF_MV0TN",
+  "offerUUID": "6b561ebc-11e3-49cf-817d-7141812769d8",
+  "scenarioName": "custom_offer_vir",
+  "scenarioVersion": 1,
+  "actorId": "safak",
+  "id": "",
+  "amount": "",
+  "spentAmount": "",
+  "offerStatus": "SUCCESS",
+  "statusDetail": "",
+  "segmentCode": "",
+  "trxId": "trx_safak_1621591506186",
+  "merchants": [],
+  "tags": [
+    {
+      "name": "tag_var",
+      "value": "\"tagi_de_guzelmis\""
+    }
+  ],
+  "variant": "",
+  "isControlGroup": false,
+  "insertDate": 1621591506236,
+  "startDate": 1621544400000,
+  "expireDate": 1627765200000,
+  "customBenefitParameters": [
+    {
+      "name": "benim_bu",
+      "value": "bu_da_değeri"
+    },
+    {
+      "name": "cok_guzel",
+      "value": "tabisi güzel"
+    }
+  ],
+  "customBenefitTemplate": null
+}

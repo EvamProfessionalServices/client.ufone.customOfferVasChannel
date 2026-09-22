@@ -1,0 +1,197 @@
+server:
+  port: 9998
+  base-path: /offer-integration-template
+  error:
+    include-message: always
+logging:
+  config: config/log4j2.xml
+  appender: logConsole
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/evam
+    username: postgres
+    password: postgres
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 45000
+      validation-timeout: 7500
+      idle-timeout: 1200000
+      max-lifetime: 2700000
+      data-source-properties:
+        implicitCachingEnabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        generate_statistics: true
+        order_inserts: true
+        order_updates: true
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 100
+kafka:
+  bootstrap-address: localhost:9092
+  event-topic:
+    name: campaignEventsTopic
+    partition: 8
+    replication: 1
+    retention-ms: 43200000
+  integration-topic:
+    name: success-offer-record
+    group: sucessOfferRecordIntegrationGroup
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    partition: 8
+    replication: 1
+    retention-ms: 43200000
+    concurrency: 4
+    max-pool-records: 1000
+  producer:
+    buffer-memory: 33554432
+    batch-size: 16384
+    linger-ms: 300
+    acks: 1
+### RATE LIMITER
+#### The client send method is called a maximum of 5 times in 1 second.
+resilience4j.ratelimiter:
+  instances:
+    client-limiter:
+      limitForPeriod: 5
+      limitRefreshPeriod: 1s
+custom-offer-event-name:
+  # boltonProfileFail,boltonProfileSuccess,boltonVerificationFail,boltonVerificationSuccess,customOfferFail,customOfferSubmitted
+  fail: customOfferFail
+  success: customOfferSubmitted
+vas:
+  # possible values of phase are profile|verify|action
+  phase: profile
+  timeRestricted: true
+  silentModeStart: '19:59:59'
+  silentModeEnd: '09:00:01'
+  persist:
+    enabled: true
+    jobBufferSize: 5000
+    poolSize: 2
+    sql:
+      action: >-
+        INSERT INTO ptcl_bolton_vas (
+          offer_code, offer_uuid, scenario_name, segment_code, insert_time, 
+          debug_mode, actor_id, action, pstn, integration_id, service_id, 
+          response_error_code, response_error_message, response_order_id, response_status
+        ) 
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      profile: >-
+        INSERT INTO ptcl_bolton_customer_profile (
+          debug_mode, landline, response_code, response_description, response_product_type, 
+          response_data_rate, response_virtual_number, response_integration_id, 
+          response_mobile_number, response_account_id, response_xml
+        ) 
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      verify: >-
+        INSERT INTO ptcl_bolton_verification (
+          debug_mode, part_number, virtual_number, action, response_code, response_description, 
+          response_integrationId, response_installed_vas, response_xml
+        ) 
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+  endpoints:
+    action:
+      add: http://10.254.172.236:7800/AddVas/AddVas
+      remove: http://10.254.172.236:7800/RemoveVas/RemoveVas
+    profile: http://10.254.172.236:7800/GetCustomerProfile/GetCustomerProfile
+    verify: http://esb-prd1.ptclgroup.com:7855/BoltonVerification?wsdl
+  expr:
+    action:
+      code: //Envelope/Body/WebOrderCreation_Output/Error_spcCode
+      message: //Envelope/Body/WebOrderCreation_Output/Error_spcMessage
+      orderId: //Envelope/Body/WebOrderCreation_Output/Status
+      status: //Envelope/Body/WebOrderCreation_Output/OrderId
+    profile:
+      code: //Envelope/Body/CustomerProfile/RetCode
+      description: //Envelope/Body/CustomerProfile/RetDesc
+      productType: //Envelope/Body/CustomerProfile/PRODUCTTYPE
+      dataRate: //Envelope/Body/CustomerProfile/BBDataRate
+      virtualNumber: //Envelope/Body/CustomerProfile/GPON_VirtualNumber
+      integrationId: //Envelope/Body/CustomerProfile/BBIntegrationId
+      mobileNumber: //Envelope/Body/CustomerProfile/MobileNumber
+      accountId: //Envelope/Body/CustomerProfile/AccountID
+    verify:
+      code: //Envelope/Body/BoltonVerificationResponse/returnCode
+      desc: //Envelope/Body/BoltonVerificationResponse/returnDesc
+      integrationId: //Envelope/Body/BoltonVerificationResponse/IntegrationId
+      vasList: //Envelope/Body/BoltonVerificationResponse/installedVasList
+  payload:
+    action:
+      addVas: >-
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:add="http://AddVas">
+          <soapenv:Header/>
+          <soapenv:Body>
+            <add:AddVas>
+              <SecurityParam>
+                <UserName>CRM</UserName>
+                <Password>123</Password>
+                <IP>?</IP>
+              </SecurityParam>
+              <PSTN>:landline</PSTN>
+              <IntegrationId>:integrationId</IntegrationId>
+              <ServiceID>:partNumber</ServiceID>
+            </add:AddVas>
+          </soapenv:Body>
+        </soapenv:Envelope>
+      removeVas: >-
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:rem="http://RemoveVas">
+          <soapenv:Header/>
+          <soapenv:Body>
+            <rem:RemoveVas>
+              <SecurityParam>
+                <UserName>CRM</UserName>
+                <Password>123</Password>
+                <IP>?</IP>
+              </SecurityParam>
+              <PSTN>:landline</PSTN>
+              <IntegrationId>:integrationId</IntegrationId>
+              <ServiceID>:partNumber</ServiceID>
+            </rem:RemoveVas>
+          </soapenv:Body>
+        </soapenv:Envelope>
+    profile: >-
+      <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:get="http://GetCustomerProfile">
+        <soapenv:Header/>
+        <soapenv:Body>
+          <get:GetCustomerProfile>
+            <SecurityParam>
+              <UserName>CRM</UserName>
+              <Password>123</Password>
+              <IP>?</IP>
+            </SecurityParam>
+            <RequestParam>
+              <ServiceIdentifier>:landline</ServiceIdentifier>
+              <ServiceIdentifierType></ServiceIdentifierType>
+            </RequestParam>
+          </get:GetCustomerProfile>
+        </soapenv:Body>
+      </soapenv:Envelope>
+    verify: >-
+      <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:bol="http://www.ptcl.net.pk/BoltonVerification/">
+        <soapenv:Header/>
+        <soapenv:Body>
+          <bol:BoltonVerificationRequest>
+            <bol:securityParam>
+              <bol:username>IIB</bol:username>
+              <bol:password>IIB</bol:password>
+            </bol:securityParam>
+            <bol:boltonPartNumber>:partNumber</bol:boltonPartNumber>
+            <bol:serviceId>:virtualNumber</bol:serviceId>
+            <bol:action>:action</bol:action>
+          </bol:BoltonVerificationRequest>
+        </soapenv:Body>
+      </soapenv:Envelope>

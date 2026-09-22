@@ -1,0 +1,174 @@
+server:
+  port: 9967
+  base-path: /offer-integration-template
+  error:
+    include-message: always
+logging:
+  config: config/log4j2.xml
+  appender: logFile
+spring:
+  datasource:
+    url: jdbc:postgresql://172.16.16.24:5432/evamdb
+    username: evam
+    password: evamdb@1234!
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 45000
+      validation-timeout: 7500
+      idle-timeout: 1200000
+      max-lifetime: 2700000
+      data-source-properties:
+        implicitCachingEnabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        generate_statistics: true
+        order_inserts: true
+        order_updates: true
+        use_sql_comments: false
+        show_sql: false
+kafka:
+  bootstrap-address: 172.16.16.19:9092,172.16.16.20:9092,172.16.16.21:9092
+  event-topic:
+    name: campaignEventsTopic
+    partition: 8
+    replication: 1
+    retention-ms: 43200000
+  integration-topic:
+    name: vasAddRemove
+    group: vasAddRemoveGroup
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    partition: 6
+    replication: 3
+    retention-ms: 21600000
+    concurrency: 4
+    max-pool-records: 1000
+  producer:
+    buffer-memory: 33554432
+    batch-size: 16384
+    linger-ms: 300
+    acks: 1
+### RATE LIMITER
+#### The client send method is called a maximum of 5 times in 1 second.
+resilience4j.ratelimiter:
+  instances:
+    client-limiter:
+      limitForPeriod: 5
+      limitRefreshPeriod: 1s
+custom-offer-event-name:
+  fail: boltonVASFail
+  success: boltonVASSubmitted
+vas:
+  # possible values of phase are profile|verify|action
+  phase: action
+  timeRestricted: false
+  silentModeStart: '19:59:59'
+  silentModeEnd: '09:00:01'
+  persist:
+    enabled: true
+    jobBufferSize: 5000
+    poolSize: 2
+    sql:
+      action: >-
+        INSERT INTO evam.ptcl_bolton_vas (
+          offer_code, offer_uuid, scenario_name, segment_code, insert_time, debug_mode, 
+          actor_id, action, pstn, integration_id, service_id, response_error_code, 
+          response_error_message, response_order_id, response_status, response_xml, channel_type
+        
+        ) 
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      profile:
+      verify:
+  endpoints:
+    action:
+      add: http://10.254.172.236:7800/AddVas/AddVas
+      remove: http://10.254.172.236:7800/RemoveVas/RemoveVas
+      #production links remove the above two lines
+      #add: http://esb-prd2.ptclgroup.com:10022/AddVas/AddVas
+      #remove: http://esb-prd2.ptclgroup.com:10022/RemoveVas/RemoveVas
+    profile:
+    verify:
+  expr:
+    action:
+      code: //Envelope/Body/WebOrderCreation_Output/RetCode
+      message: //Envelope/Body/WebOrderCreation_Output/RetDesc
+      orderId: //Envelope/Body/WebOrderCreation_Output/Status
+      status: //Envelope/Body/WebOrderCreation_Output/OrderId
+    profile:
+    verify:
+  channels:
+    CMS:
+      username: EVAM_Bolton
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-SMS:
+      username: CMS-SMS
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-RoboCall:
+      username: CMS-RoboCall
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-Whatsapp-OB:
+      username: CMS-Whatsapp-OB
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-Whatsapp-IB:
+      username: CMS-Whatsapp-IB
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-UPTCLApp:
+      username: CMS_UPTCL
+      password: CMS@123$%
+      ip: 10.1.1.1
+    CMS-OneWindow:
+      username: CMS_OneWindow
+      password: CMS@123$%
+      ip: 10.1.1.1
+    DEFAULT:
+      username: EVAM_Bolton
+      password: EVAM#2233
+      ip: 10.1.1.1
+  payload:
+    action:
+      add: >-
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:add="http://AddVas">
+          <soapenv:Header/>
+          <soapenv:Body>
+            <add:AddVas>
+              <SecurityParam>
+                <UserName>:userName</UserName>
+                <Password>:password</Password>
+                <IP>?</IP>
+              </SecurityParam>
+              <PSTN>:landline</PSTN>
+              <IntegrationId>:integrationId</IntegrationId>
+              <ServiceID>:partNumber</ServiceID>
+            </add:AddVas>
+          </soapenv:Body>
+        </soapenv:Envelope>
+      remove: >-
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:rem="http://RemoveVas">
+          <soapenv:Header/>
+          <soapenv:Body>
+            <rem:RemoveVas>
+              <SecurityParam>
+                <UserName>:userName</UserName>
+                <Password>:password</Password>
+                <IP>?</IP>
+              </SecurityParam>
+              <PSTN>:landline</PSTN>
+              <IntegrationId>:integrationId</IntegrationId>
+              <ServiceID>:partNumber</ServiceID>
+            </rem:RemoveVas>
+          </soapenv:Body>
+        </soapenv:Envelope>
+    profile:
+    verify:

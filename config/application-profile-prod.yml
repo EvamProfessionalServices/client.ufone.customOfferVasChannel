@@ -1,0 +1,125 @@
+server:
+  port: 9965
+  base-path: /offer-integration-template
+  error:
+    include-message: always
+logging:
+  config: config/log4j2.xml
+  appender: logFile
+spring:
+  datasource:
+    url: jdbc:postgresql://172.16.16.24:5432/evamdb
+    username: evam
+    password: evamdb@1234!
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 45000
+      validation-timeout: 7500
+      idle-timeout: 1200000
+      max-lifetime: 2700000
+      data-source-properties:
+        implicitCachingEnabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        generate_statistics: true
+        order_inserts: true
+        order_updates: true
+        use_sql_comments: false
+        show_sql: false
+kafka:
+  bootstrap-address: 172.16.16.19:9092,172.16.16.20:9092,172.16.16.21:9092
+  event-topic:
+    name: campaignEventsTopic
+    partition: 8
+    replication: 1
+    retention-ms: 43200000
+  integration-topic:
+    name: getCustomerProfile
+    group: getCustomerProfileGroup
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    partition: 6
+    replication: 3
+    retention-ms: 21600000
+    concurrency: 4
+    max-pool-records: 1000
+  producer:
+    buffer-memory: 33554432
+    batch-size: 16384
+    linger-ms: 300
+    acks: 1
+### RATE LIMITER
+#### The client send method is called a maximum of 5 times in 1 second.
+resilience4j.ratelimiter:
+  instances:
+    client-limiter:
+      limitForPeriod: 5
+      limitRefreshPeriod: 1s
+custom-offer-event-name:
+  fail: boltonProfileFail
+  success: boltonProfileSuccess
+vas:
+  # possible values of phase are profile|verify|action
+  phase: profile
+  timeRestricted: false
+  silentModeStart: '19:59:59'
+  silentModeEnd: '09:00:01'
+  persist:
+    enabled: true
+    jobBufferSize: 5000
+    poolSize: 2
+    sql:
+      action:
+      profile: >-
+        INSERT INTO evam.ptcl_bolton_customer_profile (
+          debug_mode, landline, response_code, response_description, response_product_type, 
+          response_data_rate, response_virtual_number, response_integration_id, 
+          response_mobile_number, response_account_id, response_xml
+        ) 
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      verify:
+  endpoints:
+    action:
+    profile: http://10.254.172.236:7800/GetCustomerProfile/GetCustomerProfile
+    #production link remove the above line
+    #profile: http://esb-prd2.ptclgroup.com:10012/GetCustomerProfile/GetCustomerProfile?wsdl
+    verify:
+  expr:
+    action:
+    profile:
+      code: //Envelope/Body/CustomerProfile/RetCode
+      description: //Envelope/Body/CustomerProfile/RetDesc
+      productType: //Envelope/Body/CustomerProfile/PRODUCTTYPE
+      dataRate: //Envelope/Body/CustomerProfile/BBDataRate
+      virtualNumber: //Envelope/Body/CustomerProfile/GPON_VirtualNumber
+      integrationId: //Envelope/Body/CustomerProfile/BBIntegrationId
+      mobileNumber: //Envelope/Body/CustomerProfile/MobileNumber
+      accountId: //Envelope/Body/CustomerProfile/AccountID
+    verify:
+  payload:
+    action:
+    profile: >-
+      <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:get="http://GetCustomerProfile">
+        <soapenv:Header/>
+        <soapenv:Body>
+          <get:GetCustomerProfile>
+            <SecurityParam>
+              <UserName>CRM</UserName>
+              <Password>123</Password>
+              <IP>?</IP>
+            </SecurityParam>
+            <RequestParam>
+              <ServiceIdentifier>:landline</ServiceIdentifier>
+              <ServiceIdentifierType></ServiceIdentifierType>
+            </RequestParam>
+          </get:GetCustomerProfile>
+        </soapenv:Body>
+      </soapenv:Envelope>
+    verify:
